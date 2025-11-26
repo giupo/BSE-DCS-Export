@@ -14,17 +14,18 @@ local BSE = {
         ip = "127.0.0.1",
         port = 6666
     },
-    every_framecount = 30,
+
+    last_updated = {
+        playerId = 0,
+        position = 0,
+        worldObjects = {},
+        mission = 0
+    },
+
+    max_send_ops = 256,
 
     sender = require("BSE-DCS-Export/udp")
-    -- sender = require("BSE-DCS-Export/tcp")
-}
-
-local DcsWorldState = {
-    playerId = 0,
-    player_position = {},
-    world_objects = {},
-    mission_data = {},
+    --sender = require("BSE-DCS-Export/tcp"),
 }
 
 function BSE:Start()
@@ -42,27 +43,72 @@ function BSE:Stop()
     Logger:info("closed.")
 end
 
-function BSE:shouldUpdate(timeElapsed)
-    return (self.frameCounter % self.every_framecount) == 0
+function BSE:shouldUpdate(last_updated, threshold)
+    return self.frameCounter - last_updated > threshold
 end
 
+function BSE:UpdatePlayerUnit(threshold)
+    if not self:shouldUpdate(self.last_updated.playerId, threshold) then return end
+    
+    self.sender:send({
+        playerId = DCS.getPlayerUnit()                
+    })   
+    self.last_updated.playerId = self.frameCounter
+end
+
+function BSE:UpdatePlayerPosition(threshold)
+    if not self:shouldUpdate(self.last_updated.position, threshold) then return end
+    self.sender:send({
+        position = Export.LoGetSelfData()                
+    })
+    self.last_updated.position = self.frameCounter
+end
+
+function BSE:UpdateWorldObjects(threshold)    
+    local worldObjects = Export.LoGetWorldObjects()
+    
+    for id, unit in pairs(worldObjects) do
+        local last_updated = self.last_updated.worldObjects[id] or 0
+        if self:shouldUpdate(last_updated, threshold) then
+            self.sender:send({
+                worldObjects = {
+                    [id] = unit
+                }
+            })
+            self.last_updated.worldObjects[id] = self.frameCounter
+        end
+
+        if self.sender.sent_objects > self.max_send_ops then 
+            break
+        end    
+    end
+end
+
+function BSE:UpdateMissionData(threshold)
+    if not self:shouldUpdate(self.last_updated.mission, threshold) then return end    
+    local mission = DCS.getCurrentMission()
+    self.sender:send(DCS.getCurrentMission())
+    self.last_updated.mission = self.frameCounter
+end
 
 function BSE:Update()
     self.frameCounter = self.frameCounter + 1
+
     Logger:debug("Updating..")
-    if not self:shouldUpdate() then return end
+  
+    if self.frameCounter == 1 then
+        self:UpdatePlayerUnit(0)
+        self:UpdatePlayerPosition(0)
+        self:UpdateWorldObjects(0)
+        self:UpdateMissionData(0)    
+        Logger:debug("Early update, at first...")
+        return
+    end
 
-    local new_state = {
-        playerId = DCS.getPlayerUnit(),
-        player_position = Export.LoGetSelfData(),
-        world_objects = Export.LoGetWorldObjects(),
-        mission_data = DCS.getCurrentMission()
-    }
-
-    -- local to_be_sent = tableDiff(DcsWorldState, new_state)    
-    self.sender:send(new_state)
-
-    DcsWorldState = new_state
+    self:UpdatePlayerUnit(200)
+    self:UpdatePlayerPosition(10)
+    self:UpdateWorldObjects(30)
+    self:UpdateMissionData(1024)
 
     Logger:debug("Updated.")
 end

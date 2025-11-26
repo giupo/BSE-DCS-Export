@@ -3,7 +3,8 @@ local json = require("BSE-DCS-Export/json")
 
 local udp = {
     ip =  "127.0.0.1",
-    port = 6666
+    port = 6666,
+    sent_objects = 0
 }
 
 function udp:init(ip, port)
@@ -24,7 +25,10 @@ function udp:send(data)
 
     if err_msg ~= nil then
         Logger:warning("Cannot send this motherfucker: " .. err_msg)
+        return
     end
+
+    self.sent_objects = self.sent_objects + 1
 end
 
 function udp:close()
