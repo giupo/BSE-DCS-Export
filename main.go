@@ -6,9 +6,12 @@ import (
 )
 
 func main() {
-	udpPort := flag.String("udp", "", "Porta UDP da ascoltare")
-	tcpPort := flag.String("tcp", "", "Porta TCP da ascoltare")
+	udpPort := flag.String("udp", "6666", "Porta UDP da ascoltare")
+	tcpPort := flag.String("tcp", "6666", "Porta TCP da ascoltare")
+	apiPort := flag.Int("http", 8080, "Porta TCP da ascoltare")
 	flag.Parse()
+
+	var store *DataStore = NewDataStore()
 
 	if *udpPort == "" && *tcpPort == "" {
 		fmt.Println("Usa: app -udp 6666  oppure:  app -tcp 6666")
@@ -16,17 +19,14 @@ func main() {
 	}
 
 	if *udpPort != "" {
-		u := UDPServer{Port: *udpPort}
+		u := UDPServer{Port: *udpPort, Store: store}
 		u.Start()
-		StartAPI(u.Store, 8080)
 	}
 
 	if *tcpPort != "" {
-		t := TCPServer{Port: *tcpPort}
+		t := TCPServer{Port: *tcpPort, Store: store}
 		t.Start()
-		StartAPI(t.Store, 8080)
 	}
 
-	// Evita che l’app finisca
-
+	StartAPI(store, *apiPort)
 }
