@@ -1,0 +1,8 @@
+* Checklist:
+** DONE Check worlds_object format
+** TODO try UDP export 
+** TODO try TCP export
+** TODO Benchmark over DCS:
+ - No stuttering.
+ - Completeness of data
+ - creation and destruction of objects
